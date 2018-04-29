@@ -1,0 +1,6 @@
+[package]
+name = "udfstd"
+version = "0.1.0"
+authors = ["Roy Zhang <pudh4418@gmail.com>"]
+
+[dependencies]
