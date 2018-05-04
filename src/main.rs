@@ -409,6 +409,21 @@ fn read_struct<T, R: Read>(reader: &mut R) -> io::Result<T>
     }
 }
 
+fn decode_cs0(input: &[u8]) -> String {
+    let comp_id = input[0];
+    match comp_id {
+        8 | 254 => {
+            let vector: Vec<u8> = Vec::from(&input[1..]);
+            String::from_utf8(vector).unwrap()
+        }
+        16 | 255 => {
+            let vector: Vec<u16> = input[1..].chunks(2).map(|x| x[0] as u16 * 256 + x[1] as u16).collect();
+            String::from_utf16(&vector).unwrap()
+        }
+        _ => panic!("Unknown charset"),
+    }
+}
+
 fn read_fileids<R: Read + Seek>(f: &mut R) {
     while let Ok(fid) = read_struct::<FileIdentifierDescriptor, R>(f) {
         let l_fi = fid.file_id_len as usize;
@@ -417,13 +432,15 @@ fn read_fileids<R: Read + Seek>(f: &mut R) {
         f.read_exact(fi.as_mut_slice()).unwrap();
         let icb: LBA = From::from(fid.icb.ext_pos);
         let flag = fid.file_characteristics;
-        if flag & 0x8 != 0 {
-            print!("Parent dir");
-        } else if l_fi > 0 {
-            let name = str::from_utf8(&fi[1..]).unwrap();
-            print!("{} Name = {}", fi[0], name);
+        if flag & 0x4 == 0 {
+            if flag & 0x8 != 0 {
+                print!("Parent dir");
+            } else if l_fi > 0 {
+                let name = decode_cs0(&fi);
+                print!("Name = {}", name);
+            }
+            println!(" -> ({}, {})", icb.prn, icb.lbn);
         }
-        println!(" -> ({}, {})", icb.prn, icb.lbn);
         let pad = ((41+l_fi+l_iu)/4*4-(38+l_fi+l_iu)) as i64;
         let loc = f.seek(SeekFrom::Current(pad)).unwrap();
     }
